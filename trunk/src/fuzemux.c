@@ -17,17 +17,19 @@
  *  along with Fuzemux.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- #define USAGESCREEN \
- "Usage: fuzemux INPUTFILE OUTPUTFILE\n\n" \
- "fuzemux version 0.1.0\n" \
- "project home page: http://code.google.com/p/fuzemux\n"
-
 
 #include "riff.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+
+#include <config.h>
+
+ #define USAGESCREEN \
+ "Usage: fuzemux INPUTFILE OUTPUTFILE\n\n" \
+ PACKAGE_STRING "\n" \
+ "project home page: http://code.google.com/p/fuzemux\n"
 
 #define AVIHEADERSIZE    56
 #define STREAMHEADERSIZE 56
@@ -495,13 +497,4 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Done.\n");
     return 0;
 }
-
-
-
-
-
-
-
-
-
 

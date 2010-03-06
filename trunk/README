@@ -1,0 +1,23 @@
+------------------------------------------------------------------------------
+  Introduction
+------------------------------------------------------------------------------
+
+Fuzemux is a program for remuxing avi files for creating video files
+playable on the Sansa Fuze portable media player. For more information,
+refer to the project home page:
+
+    http://code.google.com/p/fuzemux/
+
+
+------------------------------------------------------------------------------
+  Compiling/Installing
+------------------------------------------------------------------------------
+	
+Fuzemux now uses GNU autotools. Installation is usually done by
+
+	./configure
+	make
+	make install
+
+If you have downloaded the SVN version, you have to run
+``autoreconf --install'' first to create the configure script.
