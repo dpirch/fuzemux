@@ -1,5 +1,5 @@
 #summary How to compile fuzemux
-#labels Featured
+#labels Deprecated
 
 fuzemux is written in C99 and should work on any operating system with a contemporary C compiler. To compile is using gcc for example, just run
 {{{
