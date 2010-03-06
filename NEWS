@@ -1,0 +1,5 @@
+Version 0.1.1 (2010-03-06)
+  * rearranged source files and added autoconf/automake build support
+
+Version 0.1.0 (2010-02-19)
+  * First offical release.
