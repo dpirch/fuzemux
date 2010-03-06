@@ -1,0 +1,16 @@
+#summary How to install Fuzemux
+#labels Featured
+
+== Windows ==
+To install Fuzemux on Windows, get the latest Windows binary package (fuzemux-x.x.x-win32.zip) from the [http://code.google.com/p/fuzemux/downloads/list Downloads] section, and unzip it somewhere. It contains just the executable.
+
+== Debian/Ubuntu ==
+.deb packages are currently not maintained by this project, but are available as part of the video4fuze project: [http://code.google.com/p/video4fuze/downloads/list] 
+
+== Other == 
+To use Fuzemux on other operating systems, you need to compile it from source. There is no Makefile or configure script at the moment, but compiling should be possible without problems using any C99 compiler. To compile it using gcc, just download and untar the latest source code release, and run
+{{{
+gcc -std=c99 -O2 fuzemux.c riff.c -o fuzemux
+}}}
+
+
