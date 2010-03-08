@@ -47,6 +47,7 @@
 #define AUDIOID FOURCC('0','1','w','b')
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
+#define MAX(a,b) ((a)>(b)?(a):(b))
 
 
 
@@ -60,6 +61,9 @@ struct inputinfo {
         char videoformat[VIDEOFORMATSIZE];
         char audioformat[AUDIOFORMATSIZE];
     } headers;
+	
+	uint32_t framerate_num, framerate_den;
+	uint32_t audio_byterate;	
 
     size_t nvideoframes;
     struct { uint32_t offset; uint32_t size; bool iskeyframe; } *videoframes;
@@ -81,6 +85,7 @@ struct outputstream {
     uint64_t currentbaseoffset;
 
     uint32_t samplecount;
+    uint32_t maxframesize;
 
     fpos_t superindexpos;
     fpos_t currentindexpos;
@@ -118,6 +123,24 @@ fwrite_at(const void *buf, size_t size, FILE *f, fpos_t *pos)
     fsetpos(f, pos);
     fwrite(buf, size, 1, f);
     fsetpos(f, &current);
+}
+
+
+/* retrieve framerate and audio bitrate from headers */
+static void
+evaluate_headers(struct inputinfo *info)
+{
+	info->framerate_num = 
+		from_le32(info->headers.videoheader+24);  /* dwRate */
+	info->framerate_den = 
+		from_le32(info->headers.videoheader+20);  /* dwScale */
+		
+	info->audio_byterate = 
+		from_le32(info->headers.audioformat+8);    /* nAvgBytesPerSec */
+
+	printf("frame rate: %lu/%lu fps\n",	(unsigned long)info->framerate_num,
+                                        (unsigned long)info->framerate_den);
+	printf("audio bitrate: %lu bps\n",	(unsigned long)(8 * info->audio_byterate));
 }
 
 
@@ -206,6 +229,8 @@ parse_input_file(struct inputinfo *info, FILE *file)
     riffread_chunkdata(&r, info->headers.audioformat, 0);
     riffread_listend(&r); /* strl */
     riffread_listend(&r); /* hdrl */
+	
+	evaluate_headers(info);
 
     if (!riffread_search(&r, FOURCC_LIST, FOURCC('m','o','v','i'))) fail("movi list missing");
     uint32_t movioffset = r.offset + 8; /* offset of "movi" listid */
@@ -242,6 +267,7 @@ outputstream_init(struct outputstream *os, size_t formatsize,
     os->currentindexfill = 0; /* recreate for next chunk */
     os->currentindexsamples = 0;
     os->samplecount = 0;
+    os->maxframesize = 0;
 
     os->idkey = idkey;
     os->idother = idother;
@@ -301,6 +327,7 @@ outputstream_addframe(struct outputstream *os, char *data, uint32_t datasize,
     os->currentindexfill++;
     os->currentindexsamples += samples;
     os->samplecount += samples;
+    os->maxframesize = MAX(os->maxframesize, datasize);
 
     if (os->currentindexfill == INDEXLEN) {
         outputstream_finishindex(os, w->file);
@@ -350,7 +377,14 @@ writeframes(struct output *of, riffwrite *w,
             free(data);
         }
         if (iain < info->naudioframes || aframein) {
-            size_t datamax = ivin < info->nvideoframes ? 1600 : 2000;
+            
+            size_t datamax;   /* maximum bytes of audio stream to add */
+			if (ivin < info->nvideoframes)
+			    datamax = (uint64_t)ivin * info->audio_byterate 
+                          * info->framerate_den / info->framerate_num
+                          - of->audio.samplecount;
+            else
+                datamax = 2000;
 
             char *data = xmalloc(datamax);
             uint32_t datafill = 0;
@@ -383,7 +417,6 @@ rewriteheaders(struct output *of, struct inputinfo *info, FILE *outfile)
     struct headers h = info->headers;
     char odmlheader[ODMLHEADERSIZE];
 
-
     /* AVI main header (AVIMAINHEADER structure) */
     fwrite_at(h.aviheader, AVIHEADERSIZE, outfile, &of->aviheaderpos);
 
@@ -393,21 +426,25 @@ rewriteheaders(struct output *of, struct inputinfo *info, FILE *outfile)
     fwrite_at(odmlheader, ODMLHEADERSIZE, outfile, &of->odmlheaderpos);
 
     /* video stream header (AVISTREAMHEADER structure) */
-    to_le32(h.videoheader+20,   500000);  /* dwScale */
-    to_le32(h.videoheader+24, 10000000);  /* dwRate */
+	
+		/* scale framerate numerator and denominator to get values similar to SMC */
+	uint32_t frameratefactor = MAX(1, 500000 / info->framerate_den);
+	
+    to_le32(h.videoheader+20, info->framerate_den * frameratefactor);  /* dwScale */
+    to_le32(h.videoheader+24, info->framerate_num * frameratefactor);  /* dwRate */
     fwrite_at(h.videoheader, STREAMHEADERSIZE, outfile, &of->video.headerpos);
 
     /* audio header (AVISTREAMHEADER structure) */
     to_le32(h.audioheader+20, 1);                       /* dwScale */
-    to_le32(h.audioheader+24, 16000);                   /* dwRate */
-    double audioratefactor = (double)16000 *
+    to_le32(h.audioheader+24, info->audio_byterate);    /* dwRate */
+    double audioratefactor = (double)info->audio_byterate *
         from_le32(info->headers.audioheader + 20) /
         from_le32(info->headers.audioheader + 24);
     uint32_t audiostart = 0.5 + audioratefactor *
         from_le32(info->headers.audioheader + 28);
     to_le32(h.audioheader+28, audiostart);              /* dwStart */
     to_le32(h.audioheader+32, of->audio.samplecount);   /* dwLength */
-    to_le32(h.audioheader+36, 2000 + 8);                /* dwSuggestedBufferSize */
+    to_le32(h.audioheader+36, of->audio.maxframesize + 8); /* dwSuggestedBufferSize */
     to_le32(h.audioheader+44, 1);                       /* dwSampleSize */
     fwrite_at(h.audioheader, STREAMHEADERSIZE, outfile, &of->audio.headerpos);
 
